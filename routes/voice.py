@@ -1,8 +1,10 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Body
 import speech_recognition as sr
 import tempfile
 import os
 from pydub import AudioSegment
+from services.llm_service import get_chat_response
+from fastapi.responses import StreamingResponse
 
 router = APIRouter()
 
@@ -37,6 +39,23 @@ def voice_to_text(file: UploadFile = File(...)):
         text = recognizer.recognize_google(audio)
         # Clean up temp file
         os.remove(temp_wav_path)
-        return {"text": text}
+        response_text, mp3_bytes = get_chat_response(text)
+        return StreamingResponse(
+            iter([mp3_bytes]), media_type="audio/mpeg"
+        )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/convert")
+def convert_english_to_german(payload: dict = Body(...)):
+    text = payload.get("text")
+    if not text:
+        raise HTTPException(status_code=400, detail="Missing 'text' in request body.")
+    try:
+        response_text, mp3_bytes = get_chat_response(text)
+        return StreamingResponse(
+            iter([mp3_bytes]), media_type="audio/mpeg"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
