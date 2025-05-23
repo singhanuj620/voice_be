@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routes import users, items, voice, health
+from routes import voice, health, reportfile
+from routes.dbcheck import router as dbcheck_router
 
 app = FastAPI()
 
@@ -13,10 +14,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(users.router)
-app.include_router(items.router)
 app.include_router(voice.router)
 app.include_router(health.router)
+app.include_router(reportfile.router)
+app.include_router(dbcheck_router)
 
 if __name__ == "__main__":
     import uvicorn

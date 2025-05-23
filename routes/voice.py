@@ -1,10 +1,14 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Body
 import speech_recognition as sr
 import tempfile
 import os
 from pydub import AudioSegment
+from services.llm_service import get_chat_response
+from fastapi.responses import StreamingResponse
+from services.enchanceUserPrompt import get_best_related_prompt
 
 router = APIRouter()
+
 
 @router.post("/voice-to-text")
 def voice_to_text(file: UploadFile = File(...)):
@@ -35,8 +39,11 @@ def voice_to_text(file: UploadFile = File(...)):
         with sr.AudioFile(temp_wav_path) as source:
             audio = recognizer.record(source)
         text = recognizer.recognize_google(audio)
+        text = get_best_related_prompt(text)  # Enhance user prompt
+        print(f"Recognized text: {text}")
         # Clean up temp file
         os.remove(temp_wav_path)
-        return {"text": text}
+        response_text, mp3_bytes = get_chat_response(text)
+        return StreamingResponse(iter([mp3_bytes]), media_type="audio/mpeg")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
