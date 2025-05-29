@@ -1,3 +1,5 @@
+branch: master  # Specify the branch to be used for deployment
+
 services:
   - type: web
     name: fastapi-app
