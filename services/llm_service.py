@@ -6,6 +6,7 @@ from services.tts import synthesize_text_to_mp3
 from langchain_community.vectorstores import Chroma
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 import os
+import re
 
 load_dotenv()
 
@@ -37,6 +38,13 @@ chat_history = [
 prompt_template = ChatPromptTemplate.from_messages(chat_history)
 
 
+def sanitize_response(response: str) -> str:
+    """
+    Remove or replace special characters from the response to make it suitable for audio playback.
+    """
+    return re.sub(r"[\*\^\~\`\|\<\>\[\]\{\}]", "", response)
+
+
 def get_chat_response(user_input: str):
     global chat_history
     print("User input:", user_input)
@@ -56,7 +64,9 @@ def get_chat_response(user_input: str):
     messages = chat_history.copy()
     # Generate response
     response = llm.invoke(messages)
+    # Sanitize the AI response
+    sanitized_response = sanitize_response(response.content)
     # Add AI response to history
-    chat_history.append(AIMessage(content=response.content))
-    mp3_bytes = synthesize_text_to_mp3(response.content)
-    return response.content, mp3_bytes
+    chat_history.append(AIMessage(content=sanitized_response))
+    mp3_bytes = synthesize_text_to_mp3(sanitized_response)
+    return sanitized_response, mp3_bytes
