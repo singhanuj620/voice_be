@@ -23,7 +23,7 @@ def synthesize_text_to_mp3(text, output_filename="summary.mp3"):
     client = texttospeech.TextToSpeechClient()
     synthesis_input = texttospeech.SynthesisInput(text=text)
     voice = texttospeech.VoiceSelectionParams(
-        language_code="en-IN", name="en-IN-Wavenet-A"
+        language_code="en-US", name="en-US-Wavenet-D"
     )
     audio_config = texttospeech.AudioConfig(
         audio_encoding=texttospeech.AudioEncoding.MP3
