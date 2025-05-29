@@ -1,19 +1,24 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Body
-import speech_recognition as sr
 import tempfile
 import os
 from pydub import AudioSegment
 from services.llm_service import get_chat_response
 from fastapi.responses import StreamingResponse
-from services.enchanceUserPrompt import get_best_related_prompt
+from google.cloud import speech
+
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = (
+    r"D:\Projects\GenAI\voice\secrets\google_tts_key.json"
+)
+
+# os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/etc/secrets/google_tts_key.json"
 
 router = APIRouter()
 
 
 @router.post("/voice-to-text")
 def voice_to_text(file: UploadFile = File(...)):
-    recognizer = sr.Recognizer()
     try:
+        print(f"Received file: {file.filename}")
         filename = file.filename.lower()
         # Accept .wav and .webm files
         if not (filename.endswith(".wav") or filename.endswith(".webm")):
@@ -31,19 +36,40 @@ def voice_to_text(file: UploadFile = File(...)):
         if filename.endswith(".webm"):
             temp_wav_path = temp_audio_path + ".wav"
             audio = AudioSegment.from_file(temp_audio_path, format="webm")
+            audio = audio.set_sample_width(2)  # 16-bit PCM
             audio.export(temp_wav_path, format="wav")
             os.remove(temp_audio_path)
         else:
             temp_wav_path = temp_audio_path
-        # Use speech_recognition on the .wav file
-        with sr.AudioFile(temp_wav_path) as source:
-            audio = recognizer.record(source)
-        text = recognizer.recognize_google(audio)
-        text = get_best_related_prompt(text)  # Enhance user prompt
+            # Ensure 16-bit PCM for wav files as well
+            audio = AudioSegment.from_file(temp_wav_path)
+            if audio.sample_width != 2:
+                audio = audio.set_sample_width(2)
+                audio.export(temp_wav_path, format="wav")
+        # Detect sample rate using pydub
+        audio_segment = AudioSegment.from_file(temp_wav_path)
+        detected_sample_rate = audio_segment.frame_rate
+        print(f"Detected sample rate: {detected_sample_rate}")
+        # Use Google Cloud Speech-to-Text on the .wav file
+        print(f"Processing audio file: {temp_wav_path}")
+        client = speech.SpeechClient()
+        with open(temp_wav_path, "rb") as audio_file:
+            content = audio_file.read()
+        audio = speech.RecognitionAudio(content=content)
+        config = speech.RecognitionConfig(
+            encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
+            sample_rate_hertz=detected_sample_rate,
+            language_code="en-US",
+        )
+        response = client.recognize(config=config, audio=audio)
+        if not response.results:
+            raise HTTPException(status_code=400, detail="No speech recognized.")
+        text = response.results[0].alternatives[0].transcript
         print(f"Recognized text: {text}")
         # Clean up temp file
         os.remove(temp_wav_path)
         response_text, mp3_bytes = get_chat_response(text)
         return StreamingResponse(iter([mp3_bytes]), media_type="audio/mpeg")
     except Exception as e:
+        print(f"Error processing audio file: {e}")
         raise HTTPException(status_code=400, detail=str(e))
