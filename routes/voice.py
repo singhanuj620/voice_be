@@ -5,6 +5,7 @@ from services.llm_service import get_chat_response
 from fastapi.responses import StreamingResponse
 from google.cloud import speech
 import os
+import uuid
 
 # os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = (
 #     r"D:\Projects\GenAI\voice\secrets\google_tts_key.json"
@@ -68,7 +69,11 @@ def voice_to_text(file: UploadFile = File(...)):
         print(f"Recognized text: {text}")
         # Clean up temp file
         os.remove(temp_wav_path)
-        response_text, mp3_bytes = get_chat_response(text)
+        # Generate a random correlation ID for user/session
+        correlation_id = str(uuid.uuid4())
+        response_text, mp3_bytes = get_chat_response(
+            text, sender="user", session_id=correlation_id
+        )
         return StreamingResponse(iter([mp3_bytes]), media_type="audio/mpeg")
     except Exception as e:
         print(f"Error processing audio file: {e}")
