@@ -1,6 +1,13 @@
 from google.cloud import texttospeech
 import os
 
+# os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = (
+#     r"D:\Projects\GenAI\voice\secrets\google_tts_key.json"
+# )
+
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/etc/secrets/google_tts_key.json"
+
+
 def synthesize_text_to_mp3(text, output_filename="summary.mp3"):
     """
     Synthesizes speech from the input string of text using Google Cloud TTS, saves it as an MP3 file in the output directory,
