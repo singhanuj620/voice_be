@@ -1,5 +1,5 @@
 from google.cloud import texttospeech
-
+import os
 
 def synthesize_text_to_mp3(text, output_filename="summary.mp3"):
     """

@@ -4,6 +4,7 @@ from pydub import AudioSegment
 from services.llm_service import get_chat_response
 from fastapi.responses import StreamingResponse
 from google.cloud import speech
+import os
 
 router = APIRouter()
 
