@@ -3,10 +3,14 @@ from langchain.prompts import ChatPromptTemplate
 from dotenv import load_dotenv
 from langchain.schema import HumanMessage, AIMessage
 from services.tts import synthesize_text_to_mp3
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from datetime import datetime
 import os
-import re
+from services.generateOneLinerChatSummary import generate_oneliner_summary
+from services.chatHistoryTool import ChatHistorySearchTool
+from services.systemPrompt import system_prompt
+from services.sanatizeResponse import sanitize_response
 
 load_dotenv()
 
@@ -17,56 +21,68 @@ llm = ChatGoogleGenerativeAI(
     google_api_key=os.getenv("GOOGLE_API_KEY"),
 )
 
-# Function to handle dynamic chat with history
-chat_history = [
-    (
-        "system",
-        """You are a helpful voice assistant for business reports. Your job is to summarize reports, extract key insights, and answer user questions in a clear, conversational, and concise way.
+# Initialize ChromaDB collections (without persistence)
+embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+report_vectordb = Chroma(collection_name="reports", embedding_function=embeddings)
+chat_history_vectordb = Chroma(
+    collection_name="chat_history", embedding_function=embeddings
+)
 
-        Make sure your answers are well-structured and easy to understand when spoken aloud. Avoid excessive jargon or overly technical language unless the user asks for it. Do not repeat the entire question in your answer. Speak as if you're talking to a business professional who needs quick, insightful answers.
+prompt_template = ChatPromptTemplate.from_messages([("system", system_prompt)])
 
-        You can interpret data from uploaded reports (PDFs, Excel, etc.), explain key metrics, trends, or anomalies, and highlight important points in a human-friendly way.
-
-        Always optimize your responses for audio output — short, informative, and professional. And remember, you're here to assist with business reports, so keep the focus on clarity and relevance to the user's needs. Don't unclear answer with unnecessary details or complexity unless specifically requested.
-        
-        NOTE : The output should be concise and suitable for audio playback. Don't include special characters or formatting that might not translate well to speech.
-        """,
-    )
-]
+# Register the tool for LLM use
+chat_history_tool = ChatHistorySearchTool(chat_history_vectordb)
 
 
-prompt_template = ChatPromptTemplate.from_messages(chat_history)
-
-
-def sanitize_response(response: str) -> str:
-    """
-    Remove or replace special characters from the response to make it suitable for audio playback.
-    """
-    return re.sub(r"[\*\^\~\`\|\<\>\[\]\{\}]", "", response)
-
-
-def get_chat_response(user_input: str):
-    global chat_history
+def get_chat_response(user_input: str, sender="user", session_id=None):
     print("User input:", user_input)
-    print("Chat history:", chat_history)
-    # Load ChromaDB and embeddings
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-    vectordb = Chroma(embedding_function=embeddings)
-    # Retrieve relevant docs from ChromaDB
-    relevant_docs = vectordb.similarity_search(user_input, k=3)
+    # Retrieve relevant docs from reports collection
+    relevant_docs = report_vectordb.similarity_search(user_input, k=3)
     context_text = "\n".join([doc.page_content for doc in relevant_docs])
+    # Prepare messages for LLM
+    messages = [("system", system_prompt)]
     if context_text:
-        # Add context as a system message before user input
-        chat_history.append(AIMessage(content=f"Context from report: {context_text}"))
-    # Add user message to history
-    chat_history.append(HumanMessage(content=user_input))
-    # Prepare prompt with all previous messages
-    messages = chat_history.copy()
+        messages.append(("ai", f"Context from report: {context_text}"))
+    # Optionally, retrieve relevant chat history for context
+    relevant_chats = chat_history_vectordb.similarity_search(user_input, k=3)
+    if relevant_chats:
+        chat_context = "\n".join(
+            [doc.metadata.get("summary", doc.page_content) for doc in relevant_chats]
+        )
+        messages.append(("ai", f"Relevant chat history: {chat_context}"))
+    print("Relevant chat history:", relevant_chats)
+    messages.append(("human", user_input))
+    print("Messages for LLM:", messages)
     # Generate response
-    response = llm.invoke(messages)
-    # Sanitize the AI response
+    response = llm.invoke(messages, tools=[chat_history_tool])
+    print("##LLM response:", response.content)
     sanitized_response = sanitize_response(response.content)
-    # Add AI response to history
-    chat_history.append(AIMessage(content=sanitized_response))
+    # Generate one-liner summary for this Q&A
+    summary = generate_oneliner_summary(user_input, sanitized_response, llm)
+    # Store user message in chat_history collection (with summary=None)
+    chat_history_vectordb.add_texts(
+        texts=[user_input],
+        metadatas=[
+            {
+                "sender": sender,
+                "timestamp": datetime.utcnow().isoformat(),
+                "session_id": session_id,
+                "summary": None,
+            }
+        ],
+    )
+    # Store AI response in chat_history collection (with summary)
+    chat_history_vectordb.add_texts(
+        texts=[sanitized_response],
+        metadatas=[
+            {
+                "sender": "ai",
+                "timestamp": datetime.utcnow().isoformat(),
+                "session_id": session_id,
+                "summary": summary,
+            }
+        ],
+    )
+    print("@@LLM response:", sanitized_response)
     mp3_bytes = synthesize_text_to_mp3(sanitized_response)
     return sanitized_response, mp3_bytes
