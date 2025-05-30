@@ -1,12 +1,3 @@
-import os
-
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = (
-    "D:\Projects\GenAI\\voice\secrets\google_tts_key.json"
-)
-
-# os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/etc/secrets/google_tts_key.json"
-
-
 from google.cloud import texttospeech
 
 

@@ -1,16 +1,9 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Body
 import tempfile
-import os
 from pydub import AudioSegment
 from services.llm_service import get_chat_response
 from fastapi.responses import StreamingResponse
 from google.cloud import speech
-
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = (
-    r"D:\Projects\GenAI\voice\secrets\google_tts_key.json"
-)
-
-# os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/etc/secrets/google_tts_key.json"
 
 router = APIRouter()
 
