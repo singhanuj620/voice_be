@@ -9,4 +9,6 @@
   - Place the google tts config inside it
   - In tts.py file, uncomment the L4 and edit the actual path of this google_tts_key file path
   - Comment out L7 i.e /etc/secrets/google_tts_key.json line
-  - Do the same with 
+  - Do the same with voice.py file
+- Run command pip install -r requirements.txt
+- Run command python index.py to start backend server

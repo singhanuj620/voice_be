@@ -52,9 +52,9 @@ def upload_report_file(file: UploadFile = File(...)):
         split_docs = text_splitter.split_documents(docs)
         # Extract text from split_docs
         text_data = "\n".join([doc.page_content for doc in split_docs])
-        # Store in ChromaDB using LangChain
+        # Store in ChromaDB using LangChain, in 'reports' collection
         embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-        vectordb = Chroma.from_documents(split_docs, embedding=embeddings)
+        vectordb = Chroma.from_documents(split_docs, embedding=embeddings, collection_name="reports")
         vectordb.persist()
         # Clean up temp file
         os.remove(temp_path)
