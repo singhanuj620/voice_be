@@ -2,6 +2,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routes import voice, health, reportfile
 from routes.dbcheck import router as dbcheck_router
+import os
+
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = (
+    r"D:\Projects\GenAI\voice\secrets\google_tts_key.json"
+)
+
+# os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/etc/secrets/google_tts_key.json"
 
 app = FastAPI()
 
