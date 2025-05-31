@@ -9,6 +9,7 @@ from langchain_community.document_loaders import (
 from langchain_community.vectorstores import Chroma
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from services.full_report_store import save_full_report_text
 
 router = APIRouter()
 
@@ -44,6 +45,12 @@ def upload_report_file(file: UploadFile = File(...)):
         else:
             raise HTTPException(status_code=400, detail="Unsupported file type.")
         docs = loader.load()
+        # Save the full text of the document using a unique report_id (e.g., filename + timestamp)
+        full_text = "\n".join([doc.page_content for doc in docs])
+        import time
+
+        report_id = f"{os.path.splitext(filename)[0]}_{int(time.time())}"
+        save_full_report_text(report_id, full_text)
         # Split text into overlapping chunks for better context
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000,  # You can adjust chunk size
