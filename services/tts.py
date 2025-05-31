@@ -8,20 +8,27 @@ import os
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/etc/secrets/google_tts_key.json"
 
 
-def synthesize_text_to_mp3(text, output_filename="summary.mp3"):
+def synthesize_text_to_mp3(
+    text,
+    output_filename="summary.mp3",
+    accent_code="en-IN",
+    voice_name="en-IN-Wavenet-A",
+):
     """
     Synthesizes speech from the input string of text using Google Cloud TTS, saves it as an MP3 file in the output directory,
     and returns the binary content of the audio file.
     Args:
         text (str): The text to synthesize.
         output_filename (str): The name of the output MP3 file (default: 'summary.mp3').
+        accent_code (str): The language code for the accent (default: 'en-IN').
+        voice_name (str): The name of the TTS voice (default: 'en-IN-Wavenet-A').
     Returns:
         bytes: The binary content of the generated MP3 audio file.
     """
     client = texttospeech.TextToSpeechClient()
     synthesis_input = texttospeech.SynthesisInput(text=text)
     voice = texttospeech.VoiceSelectionParams(
-        language_code="en-IN", name="en-IN-Wavenet-A"
+        language_code=accent_code, name=voice_name
     )
     audio_config = texttospeech.AudioConfig(
         audio_encoding=texttospeech.AudioEncoding.MP3

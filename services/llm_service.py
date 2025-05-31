@@ -35,7 +35,7 @@ prompt_template = ChatPromptTemplate.from_messages([("system", system_prompt)])
 chat_history_tool = ChatHistorySearchTool(chat_history_vectordb)
 
 
-def get_chat_response(user_input: str, sender="user", session_id=None, report_id=None):
+def get_chat_response(user_input: str, sender="user", session_id=None, report_id=None, accent_code="en-IN", voice_name="en-IN-Wavenet-A"):
     print("User input:", user_input)
     # Try global search in full report text first if report_id is provided
     global_context = None
@@ -91,5 +91,5 @@ def get_chat_response(user_input: str, sender="user", session_id=None, report_id
         ],
     )
     print("@@LLM response:", sanitized_response)
-    mp3_bytes = synthesize_text_to_mp3(sanitized_response)
+    mp3_bytes = synthesize_text_to_mp3(sanitized_response, accent_code=accent_code, voice_name=voice_name)
     return sanitized_response, mp3_bytes

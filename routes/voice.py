@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Body
+from fastapi import APIRouter, UploadFile, File, HTTPException, Body, Form
 import tempfile
 from pydub import AudioSegment
 from services.llm_service import get_chat_response
@@ -17,7 +17,11 @@ router = APIRouter()
 
 
 @router.post("/voice-to-text")
-def voice_to_text(file: UploadFile = File(...)):
+def voice_to_text(
+    file: UploadFile = File(...),
+    accent_code: str = Form("en-IN"),
+    voice_name: str = Form("en-IN-Wavenet-A")
+):
     try:
         print(f"Received file: {file.filename}")
         filename = file.filename.lower()
@@ -72,7 +76,7 @@ def voice_to_text(file: UploadFile = File(...)):
         # Generate a random correlation ID for user/session
         correlation_id = str(uuid.uuid4())
         response_text, mp3_bytes = get_chat_response(
-            text, sender="user", session_id=correlation_id
+            text, sender="user", session_id=correlation_id, accent_code=accent_code, voice_name=voice_name
         )
         return StreamingResponse(iter([mp3_bytes]), media_type="audio/mpeg")
     except Exception as e:
