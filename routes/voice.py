@@ -83,3 +83,22 @@ def voice_to_text(
     except Exception as e:
         print(f"Error processing audio file: {e}")
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/text-to-voice")
+def text_to_voice(
+    text: str = Form(...),
+    accent_code: str = Form("en-IN"),
+    voice_name: str = Form("en-IN-Wavenet-A")
+):
+    try:
+        print(f"Received typed text: {text}")
+        # Generate a random correlation ID for user/session
+        correlation_id = str(uuid.uuid4())
+        response_text, mp3_bytes = get_chat_response(
+            text, sender="user", session_id=correlation_id, accent_code=accent_code, voice_name=voice_name
+        )
+        return StreamingResponse(iter([mp3_bytes]), media_type="audio/mpeg")
+    except Exception as e:
+        print(f"Error processing typed text: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
