@@ -1,4 +1,5 @@
 from google.cloud import texttospeech
+from langdetect import detect
 import os
 
 # os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = (
@@ -25,14 +26,29 @@ def synthesize_text_to_mp3(
     Returns:
         bytes: The binary content of the generated MP3 audio file.
     """
-    # Map user-friendly voice_name to Google TTS voice
-    voice_map = {
-        ("en-IN", "en-IN-Male"): ("en-IN", "en-IN-Wavenet-B"),
-        ("en-IN", "en-IN-Female"): ("en-IN", "en-IN-Wavenet-A"),
-        ("en-US", "en-US-Male"): ("en-US", "en-US-Wavenet-D"),
-        ("en-US", "en-US-Female"): ("en-US", "en-US-Wavenet-F"),
-    }
-    g_accent, g_voice = voice_map.get((accent_code, voice_name), (accent_code, "en-IN-Wavenet-A"))
+    # Detect language if not explicitly set to Hindi
+    try:
+        detected_lang = detect(text)
+    except Exception:
+        detected_lang = "en"
+    # If Hindi detected, override accent/voice to Hindi
+    if detected_lang == "hi":
+        accent_code = "hi-IN"
+        # Map to Google TTS Hindi voices (A: Male, C: Female)
+        if voice_name.endswith("Female"):
+            g_voice = "hi-IN-Wavenet-C"
+        else:
+            g_voice = "hi-IN-Wavenet-A"
+        g_accent = accent_code
+    else:
+        # Map user-friendly voice_name to Google TTS voice
+        voice_map = {
+            ("en-IN", "en-IN-Male"): ("en-IN", "en-IN-Wavenet-B"),
+            ("en-IN", "en-IN-Female"): ("en-IN", "en-IN-Wavenet-A"),
+            ("en-US", "en-US-Male"): ("en-US", "en-US-Wavenet-D"),
+            ("en-US", "en-US-Female"): ("en-US", "en-US-Wavenet-F"),
+        }
+        g_accent, g_voice = voice_map.get((accent_code, voice_name), (accent_code, "en-IN-Wavenet-A"))
     client = texttospeech.TextToSpeechClient()
     synthesis_input = texttospeech.SynthesisInput(text=text)
     voice = texttospeech.VoiceSelectionParams(
