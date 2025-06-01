@@ -20,7 +20,8 @@ router = APIRouter()
 def voice_to_text(
     file: UploadFile = File(...),
     accent_code: str = Form("en-IN"),
-    voice_name: str = Form("en-IN-Wavenet-A")
+    voice_name: str = Form("en-IN-Wavenet-A"),
+    stt_language_code: str = Form("en-US")  # NEW: Accept STT language code
 ):
     try:
         print(f"Received file: {file.filename}")
@@ -64,7 +65,7 @@ def voice_to_text(
         config = speech.RecognitionConfig(
             encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
             sample_rate_hertz=detected_sample_rate,
-            language_code="en-US",
+            language_code=stt_language_code,  # Use user-selected STT language
         )
         response = client.recognize(config=config, audio=audio)
         if not response.results:
