@@ -31,13 +31,9 @@ def synthesize_text_to_mp3(
         detected_lang = detect(text)
     except Exception:
         detected_lang = "en"
-    # If Hindi detected, use user-selected gender for Hindi TTS
     if detected_lang == "hi":
         accent_code = "hi-IN"
-        if voice_name.endswith("Female"):
-            g_voice = "hi-IN-Wavenet-C"  # Hindi Female
-        else:
-            g_voice = "hi-IN-Wavenet-A"  # Hindi Male
+        g_voice = "hi-IN-Wavenet-A"  # Hindi Female only
         g_accent = accent_code
     else:
         # Map user-friendly voice_name to Google TTS voice
