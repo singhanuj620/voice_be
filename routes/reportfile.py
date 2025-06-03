@@ -41,6 +41,7 @@ def upload_report_file(file: UploadFile = File(...)):
         if filename.endswith(".twbx"):
             import zipfile
             import xml.etree.ElementTree as ET
+            data_text = ""
             try:
                 with zipfile.ZipFile(temp_path, "r") as z:
                     twb_names = [n for n in z.namelist() if n.endswith(".twb")]
@@ -50,33 +51,35 @@ def upload_report_file(file: UploadFile = File(...)):
                     twb_name = twb_names[0]
                     with z.open(twb_name) as twb_file:
                         twb_xml = twb_file.read()
-                root = ET.fromstring(twb_xml)
-                # --- Extract .hyper files and read data ---
-                hyper_names = [n for n in z.namelist() if n.endswith(".hyper")]
-                data_text = ""
-                if hyper_names:
-                    try:
-                        from tableauhyperapi import HyperProcess, Connection, Telemetry, TableName
-                        import tempfile as _tempfile
-                        for hyper_name in hyper_names:
-                            with z.open(hyper_name) as hyper_file:
-                                with _tempfile.NamedTemporaryFile(delete=False, suffix=".hyper") as hyper_temp:
-                                    hyper_temp.write(hyper_file.read())
-                                    hyper_temp.flush()
-                                    hyper_path = hyper_temp.name
-                            with HyperProcess(telemetry=Telemetry.DO_NOT_SEND_USAGE_DATA) as hyper:
-                                with Connection(endpoint=hyper.endpoint, database=hyper_path) as connection:
-                                    tables = connection.catalog.get_table_names()
-                                    for table in tables:
-                                        rows = connection.execute_list_query(f"SELECT * FROM \"{table.schema_name}\".\"{table.table_name}\" LIMIT 20")
-                                        data_text += f"Table: {table.schema_name}.{table.table_name}\n"
-                                        for row in rows:
-                                            data_text += str(row) + "\n"
-                                        data_text += "\n"
-                            os.remove(hyper_path)
-                    except Exception as e:
-                        data_text += f"[Could not extract .hyper data: {str(e)}]"
-                # --- End .hyper extraction ---
+                    root = ET.fromstring(twb_xml)
+                    # --- Extract .hyper files and read data ---
+                    hyper_names = [n for n in z.namelist() if n.endswith(".hyper")]
+                    if hyper_names:
+                        try:
+                            from tableauhyperapi import HyperProcess, Connection, Telemetry, TableName
+                            import tempfile as _tempfile
+                            for hyper_name in hyper_names:
+                                with z.open(hyper_name) as hyper_file:
+                                    with _tempfile.NamedTemporaryFile(delete=False, suffix=".hyper") as hyper_temp:
+                                        hyper_temp.write(hyper_file.read())
+                                        hyper_temp.flush()
+                                        hyper_path = hyper_temp.name
+                                with HyperProcess(telemetry=Telemetry.DO_NOT_SEND_USAGE_DATA) as hyper:
+                                    with Connection(endpoint=hyper.endpoint, database=hyper_path) as connection:
+                                        tables = connection.catalog.get_table_names()
+                                        for table in tables:
+                                            try:
+                                                rows = connection.execute_list_query(f"SELECT * FROM \"{table.schema_name}\".\"{table.table_name}\" LIMIT 20")
+                                                data_text += f"Table: {table.schema_name}.{table.table_name}\n"
+                                                for row in rows:
+                                                    data_text += str(row) + "\n"
+                                                data_text += "\n"
+                                            except Exception as e:
+                                                data_text += f"[Could not extract data from table {table.table_name}: {str(e)}]\n"
+                                os.remove(hyper_path)
+                        except Exception as e:
+                            data_text += f"[Could not extract .hyper data: {str(e)}]"
+                    # --- End .hyper extraction ---
             except Exception as e:
                 os.remove(temp_path)
                 raise HTTPException(status_code=400, detail=f"Failed to parse Tableau .twbx file: {str(e)}")
