@@ -17,15 +17,16 @@ router = APIRouter()
 @router.post("/upload-report-file")
 def upload_report_file(file: UploadFile = File(...)):
     filename = file.filename.lower()
-    # Only allow PDF, Word, Excel
+    # Allow PDF, Word, Excel, Tableau TWB
     if not (
         filename.endswith(".pdf")
         or filename.endswith(".docx")
         or filename.endswith(".xlsx")
+        or filename.endswith(".twb")
     ):
         raise HTTPException(
             status_code=400,
-            detail="Only PDF, Word (.docx), and Excel (.xlsx) files are supported.",
+            detail="Only PDF, Word (.docx), Excel (.xlsx), and Tableau (.twb) files are supported.",
         )
     try:
         # Save uploaded file to a temp file
@@ -35,6 +36,51 @@ def upload_report_file(file: UploadFile = File(...)):
             temp_file.write(file.file.read())
             temp_file.flush()
             temp_path = temp_file.name
+        # Tableau .twb support (XML)
+        if filename.endswith(".twb"):
+            import xml.etree.ElementTree as ET
+
+            try:
+                with open(temp_path, "rb") as f:
+                    twb_xml = f.read()
+                root = ET.fromstring(twb_xml)
+            except Exception as e:
+                os.remove(temp_path)
+                raise HTTPException(
+                    status_code=400, detail=f"Failed to parse Tableau .twb file: {str(e)}"
+                )
+            # Extract worksheet names and captions (basic)
+            sheets = []
+            for ws in root.findall(".//worksheet"):
+                ws_name = ws.attrib.get("name", "Worksheet")
+                captions = []
+                for caption in ws.findall(".//caption"):
+                    if caption.text:
+                        captions.append(caption.text.strip())
+                sheets.append(f"Worksheet: {ws_name}\n" + "\n".join(captions))
+            if not sheets:
+                for ws in root.findall(".//worksheet"):
+                    ws_name = ws.attrib.get("name", "Worksheet")
+                    sheets.append(f"Worksheet: {ws_name}")
+            full_text = "\n\n".join(sheets)
+            import time
+
+            report_id = f"{os.path.splitext(filename)[0]}_{int(time.time())}"
+            save_full_report_text(report_id, full_text)
+            text_splitter = RecursiveCharacterTextSplitter(
+                chunk_size=1000, chunk_overlap=200
+            )
+            split_docs = text_splitter.create_documents([full_text])
+            embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+            vectordb = Chroma.from_documents(
+                split_docs, embedding=embeddings, collection_name="reports"
+            )
+            vectordb.persist()
+            os.remove(temp_path)
+            return {
+                "status": "success",
+                "message": "Tableau .twb file processed and stored in vector database.",
+            }
         # Load and extract text using LangChain loaders
         if filename.endswith(".pdf"):
             loader = PyPDFLoader(temp_path)
