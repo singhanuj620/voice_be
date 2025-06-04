@@ -78,7 +78,9 @@ def upload_report_file(file: UploadFile = File(...)):
                                                 data_text += f"[Could not extract data from table {table.table_name}: {str(e)}]\n"
                                 os.remove(hyper_path)
                         except Exception as e:
-                            data_text += f"[Could not extract .hyper data: {str(e)}]"
+                            import traceback
+                            tb = traceback.format_exc()
+                            data_text += f"[Could not extract .hyper data: {str(e)}\n{tb}]"
                     # --- End .hyper extraction ---
             except Exception as e:
                 os.remove(temp_path)
