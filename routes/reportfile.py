@@ -169,12 +169,24 @@ def upload_report_file(file: UploadFile = File(...)):
         elif filename.endswith(".docx"):
             loader = UnstructuredWordDocumentLoader(temp_path)
         elif filename.endswith(".xlsx"):
-            loader = UnstructuredExcelLoader(temp_path)
+            try:
+                print(f"[DEBUG] Attempting to load .xlsx file: {temp_path}")
+                loader = UnstructuredExcelLoader(temp_path)
+                docs = loader.load()
+                print(f"[DEBUG] Loaded {len(docs)} document(s) from .xlsx file.")
+                if not docs or all(not doc.page_content.strip() for doc in docs):
+                    print(f"[DEBUG] No content extracted from .xlsx file: {temp_path}")
+            except Exception as e:
+                import traceback
+                tb = traceback.format_exc()
+                print(f"[ERROR] Failed to load .xlsx file: {e}\n{tb}")
+                os.remove(temp_path)
+                raise HTTPException(status_code=400, detail=f"Failed to parse .xlsx file: {str(e)}")
         else:
             raise HTTPException(status_code=400, detail="Unsupported file type.")
-        docs = loader.load()
         # Save the full text of the document using a unique report_id (e.g., filename + timestamp)
         full_text = "\n".join([doc.page_content for doc in docs])
+        print(f"[DEBUG] Full text extracted from .xlsx: {full_text[:500]}...")
         import time
 
         report_id = f"{os.path.splitext(filename)[0]}_{int(time.time())}"
