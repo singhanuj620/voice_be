@@ -72,8 +72,10 @@ def upload_report_file(file: UploadFile = File(...)):
                                             tables = connection.catalog.get_table_names(schema)
                                             for table in tables:
                                                 try:
-                                                    # Handle empty schema case
-                                                    if not schema:
+                                                    # Log schema and table for debugging
+                                                    print(f"[DEBUG] Extracting table: schema='{schema}', table='{table}'")
+                                                    # Use TableName(table) if schema is empty or schema == table
+                                                    if not schema or schema == table:
                                                         table_name = TableName(table)
                                                     else:
                                                         table_name = TableName(schema, table)
