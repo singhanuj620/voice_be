@@ -10,6 +10,7 @@ from langchain_community.vectorstores import Chroma
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from services.full_report_store import save_full_report_text
+from tableauhyperapi import TableName
 
 router = APIRouter()
 
@@ -71,7 +72,8 @@ def upload_report_file(file: UploadFile = File(...)):
                                             tables = connection.catalog.get_table_names(schema)
                                             for table in tables:
                                                 try:
-                                                    rows = connection.execute_list_query(f'SELECT * FROM "{schema}"."{table}" LIMIT 20')
+                                                    table_name = TableName(schema, table)
+                                                    rows = connection.execute_list_query(f'SELECT * FROM {table_name} LIMIT 20')
                                                     data_text += f"Table: {schema}.{table}\n"
                                                     for row in rows:
                                                         data_text += str(row) + "\n"
