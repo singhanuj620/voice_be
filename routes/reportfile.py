@@ -66,16 +66,18 @@ def upload_report_file(file: UploadFile = File(...)):
                                         hyper_path = hyper_temp.name
                                 with HyperProcess(telemetry=Telemetry.SEND_USAGE_DATA_TO_TABLEAU) as hyper:
                                     with Connection(endpoint=hyper.endpoint, database=hyper_path) as connection:
-                                        tables = connection.catalog.get_table_names()
-                                        for table in tables:
-                                            try:
-                                                rows = connection.execute_list_query(f"SELECT * FROM \"{table.schema_name}\".\"{table.table_name}\" LIMIT 20")
-                                                data_text += f"Table: {table.schema_name}.{table.table_name}\n"
-                                                for row in rows:
-                                                    data_text += str(row) + "\n"
-                                                data_text += "\n"
-                                            except Exception as e:
-                                                data_text += f"[Could not extract data from table {table.table_name}: {str(e)}]\n"
+                                        schema_names = connection.catalog.get_schema_names()
+                                        for schema in schema_names:
+                                            tables = connection.catalog.get_table_names(schema)
+                                            for table in tables:
+                                                try:
+                                                    rows = connection.execute_list_query(f'SELECT * FROM "{schema}"."{table}" LIMIT 20')
+                                                    data_text += f"Table: {schema}.{table}\n"
+                                                    for row in rows:
+                                                        data_text += str(row) + "\n"
+                                                    data_text += "\n"
+                                                except Exception as e:
+                                                    data_text += f"[Could not extract data from table {table}: {str(e)}]\n"
                                 os.remove(hyper_path)
                         except Exception as e:
                             import traceback
