@@ -72,7 +72,11 @@ def upload_report_file(file: UploadFile = File(...)):
                                             tables = connection.catalog.get_table_names(schema)
                                             for table in tables:
                                                 try:
-                                                    table_name = TableName(schema, table)
+                                                    # Handle empty schema case
+                                                    if not schema:
+                                                        table_name = TableName(table)
+                                                    else:
+                                                        table_name = TableName(schema, table)
                                                     rows = connection.execute_list_query(f'SELECT * FROM {table_name} LIMIT 20')
                                                     data_text += f"Table: {schema}.{table}\n"
                                                     for row in rows:
