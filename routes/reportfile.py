@@ -64,7 +64,7 @@ def upload_report_file(file: UploadFile = File(...)):
                                         hyper_temp.write(hyper_file.read())
                                         hyper_temp.flush()
                                         hyper_path = hyper_temp.name
-                                with HyperProcess() as hyper:
+                                with HyperProcess(telemetry=Telemetry.SEND_USAGE_DATA_TO_TABLEAU) as hyper:
                                     with Connection(endpoint=hyper.endpoint, database=hyper_path) as connection:
                                         tables = connection.catalog.get_table_names()
                                         for table in tables:
