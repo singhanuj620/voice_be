@@ -166,8 +166,10 @@ def upload_report_file(file: UploadFile = File(...)):
         # Load and extract text using LangChain loaders
         if filename.endswith(".pdf"):
             loader = PyPDFLoader(temp_path)
+            docs = loader.load()
         elif filename.endswith(".docx"):
             loader = UnstructuredWordDocumentLoader(temp_path)
+            docs = loader.load()
         elif filename.endswith(".xlsx"):
             try:
                 print(f"[DEBUG] Attempting to load .xlsx file: {temp_path}")
@@ -186,7 +188,7 @@ def upload_report_file(file: UploadFile = File(...)):
             raise HTTPException(status_code=400, detail="Unsupported file type.")
         # Save the full text of the document using a unique report_id (e.g., filename + timestamp)
         full_text = "\n".join([doc.page_content for doc in docs])
-        print(f"[DEBUG] Full text extracted from .xlsx: {full_text[:500]}...")
+        print(f"[DEBUG] Full text extracted from file: {full_text[:500]}...")
         import time
 
         report_id = f"{os.path.splitext(filename)[0]}_{int(time.time())}"
