@@ -18,17 +18,18 @@ router = APIRouter()
 @router.post("/upload-report-file")
 def upload_report_file(file: UploadFile = File(...)):
     filename = file.filename.lower()
-    # Allow PDF, Word, Excel, Tableau TWB, Tableau TWBX
+    # Allow PDF, Word, Excel, CSV, Tableau TWB, Tableau TWBX
     if not (
         filename.endswith(".pdf")
         or filename.endswith(".docx")
         or filename.endswith(".xlsx")
+        or filename.endswith(".csv")
         or filename.endswith(".twb")
         or filename.endswith(".twbx")
     ):
         raise HTTPException(
             status_code=400,
-            detail="Only PDF, Word (.docx), Excel (.xlsx), Tableau (.twb), and Tableau (.twbx) files are supported.",
+            detail="Only PDF, Word (.docx), Excel (.xlsx), CSV (.csv), Tableau (.twb), and Tableau (.twbx) files are supported.",
         )
     try:
         # Save uploaded file to a temp file
@@ -194,6 +195,26 @@ def upload_report_file(file: UploadFile = File(...)):
                 print(f"[ERROR] Failed to load .xlsx file: {e}\n{tb}")
                 os.remove(temp_path)
                 raise HTTPException(status_code=400, detail=f"Failed to parse .xlsx file: {str(e)}")
+        elif filename.endswith(".csv"):
+            try:
+                import pandas as pd
+                print(f"[DEBUG] Attempting to load .csv file: {temp_path}")
+                df = pd.read_csv(temp_path)
+                docs = []
+                # Convert the DataFrame to a string (limit rows for very large files)
+                max_rows = 1000
+                if len(df) > max_rows:
+                    df = df.head(max_rows)
+                csv_text = df.to_csv(index=False)
+                from langchain_core.documents import Document
+                docs.append(Document(page_content=csv_text))
+                print(f"[DEBUG] Loaded CSV with shape {df.shape}.")
+            except Exception as e:
+                import traceback
+                tb = traceback.format_exc()
+                print(f"[ERROR] Failed to load .csv file: {e}\n{tb}")
+                os.remove(temp_path)
+                raise HTTPException(status_code=400, detail=f"Failed to parse .csv file: {str(e)}")
         else:
             raise HTTPException(status_code=400, detail="Unsupported file type.")
         # Save the full text of the document using a unique report_id (e.g., filename + timestamp)
