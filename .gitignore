@@ -4,3 +4,4 @@ __pycache__/
 secrets
 output
 chroma_db
+reports_fulltext

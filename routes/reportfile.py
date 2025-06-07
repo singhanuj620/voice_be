@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Query
 import tempfile
 import os
 from langchain_community.document_loaders import (
@@ -6,17 +6,22 @@ from langchain_community.document_loaders import (
     UnstructuredWordDocumentLoader,
     UnstructuredExcelLoader,
 )
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from services.full_report_store import save_full_report_text
 from tableauhyperapi import TableName
+from fastapi.responses import FileResponse
+from chromadb.config import Settings
 
 router = APIRouter()
 
 
 @router.post("/upload-report-file")
-def upload_report_file(file: UploadFile = File(...)):
+def upload_report_file(
+    file: UploadFile = File(...),
+    userId: str = Form(None),
+):
     filename = file.filename.lower()
     # Allow PDF, Word, Excel, CSV, Tableau TWB, Tableau TWBX
     if not (
@@ -230,17 +235,81 @@ def upload_report_file(file: UploadFile = File(...)):
             chunk_overlap=200,  # You can adjust overlap
         )
         split_docs = text_splitter.split_documents(docs)
-        # Extract text from split_docs
-        text_data = "\n".join([doc.page_content for doc in split_docs])
+        # Add userId and report_id as metadata to each split_doc
+        for doc in split_docs:
+            if not hasattr(doc, "metadata") or doc.metadata is None:
+                doc.metadata = {}
+            doc.metadata["userId"] = userId if userId else "user"
+            doc.metadata["report_id"] = report_id
         # Store in ChromaDB using LangChain, in 'reports' collection
         embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-        vectordb = Chroma.from_documents(split_docs, embedding=embeddings, collection_name="reports")
+        persist_dir = "chroma_db/reports"
+        collection_name = "reports"
+        # Try to load existing collection, else create new
+        try:
+            vectordb = Chroma(
+                collection_name=collection_name,
+                embedding_function=embeddings,
+                persist_directory=persist_dir,
+            )
+            vectordb.add_documents(split_docs)
+        except Exception:
+            vectordb = Chroma.from_documents(
+                split_docs,
+                embedding=embeddings,
+                collection_name=collection_name,
+                persist_directory=persist_dir,
+            )
         vectordb.persist()
         # Clean up temp file
         os.remove(temp_path)
         return {
             "status": "success",
             "message": "File processed and stored in vector database.",
+            "report_id": report_id,
+            "userId": userId if userId else "user",
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/get-user-reports")
+def get_user_reports(userId: str = Query(..., description="User ID to filter reports")):
+    try:
+        print(f"Fetching reports for userId: {userId}")
+        embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+        settings = Settings(persist_directory="chroma_db/reports", allow_reset=True)
+        vectordb = Chroma(
+            collection_name="reports",
+            persist_directory="chroma_db/reports",
+            embedding_function=embeddings,
+            client_settings=settings,
+        )
+        data = vectordb.get(include=["documents", "metadatas"])
+        ids = data.get("ids", [])
+        metadatas = data.get("metadatas", [])
+        reports = []
+        matching_report_ids = set()
+        for idx, id_ in enumerate(ids):
+            meta = metadatas[idx] if idx < len(metadatas) else {}
+            print(f"meta.get('userId'): {meta.get('userId')}, userId param: {userId}, meta: {meta}")
+            if meta.get("userId") == userId:
+                matching_report_ids.add(meta.get("report_id"))
+        return {"status": "success", "report_ids": list(matching_report_ids)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/download-report")
+def download_report(report_id: str):
+    try:
+        file_path = os.path.join("reports_fulltext", f"{report_id}.txt")
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="Report not found.")
+        return FileResponse(
+            path=file_path,
+            filename=f"{report_id}.txt",
+            media_type="text/plain",
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
