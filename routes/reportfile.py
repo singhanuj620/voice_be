@@ -178,6 +178,44 @@ def upload_report_file(file: UploadFile = File(...)):
         if filename.endswith(".pdf"):
             loader = PyPDFLoader(temp_path)
             docs = loader.load()
+            # --- Begin image extraction, OCR, and captioning ---
+            try:
+                import fitz  # PyMuPDF
+                import pytesseract
+                from PIL import Image
+                import io
+                from transformers import BlipProcessor, BlipForConditionalGeneration
+                import torch
+                print(f"[DEBUG] Extracting images from PDF: {temp_path}")
+                doc = fitz.open(temp_path)
+                image_texts = []
+                device = "cuda" if torch.cuda.is_available() else "cpu"
+                processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
+                model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base").to(device)
+                for page_num in range(len(doc)):
+                    page = doc[page_num]
+                    images = page.get_images(full=True)
+                    for img_index, img in enumerate(images):
+                        xref = img[0]
+                        base_image = doc.extract_image(xref)
+                        image_bytes = base_image["image"]
+                        image_ext = base_image["ext"]
+                        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+                        # OCR
+                        ocr_text = pytesseract.image_to_string(image)
+                        # Captioning
+                        inputs = processor(image, return_tensors="pt").to(device)
+                        with torch.no_grad():
+                            out = model.generate(**inputs)
+                        caption = processor.decode(out[0], skip_special_tokens=True)
+                        image_texts.append(f"[Image on page {page_num+1}, image {img_index+1}]:\nOCR: {ocr_text.strip()}\nCaption: {caption}\n")
+                if image_texts:
+                    from langchain_core.documents import Document
+                    for img_text in image_texts:
+                        docs.append(Document(page_content=img_text))
+            except Exception as e:
+                print(f"[ERROR] Image extraction/OCR/captioning failed: {e}")
+            # --- End image extraction, OCR, and captioning ---
         elif filename.endswith(".docx"):
             loader = UnstructuredWordDocumentLoader(temp_path)
             docs = loader.load()
