@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routes import voice, health, reportfile
+from routes import voice, health, reportfile, chat
 from routes.dbcheck import router as dbcheck_router
 
 app = FastAPI()
@@ -17,6 +17,7 @@ app.add_middleware(
 app.include_router(voice.router)
 app.include_router(health.router)
 app.include_router(reportfile.router)
+app.include_router(chat.router)
 app.include_router(dbcheck_router)
 
 if __name__ == "__main__":
