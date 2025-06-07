@@ -11,6 +11,8 @@ from services.generateOneLinerChatSummary import generate_oneliner_summary
 from services.chatHistoryTool import ChatHistorySearchTool
 from services.systemPrompt import system_prompt
 from services.sanatizeResponse import sanitize_response
+from services.full_report_search import search_full_report
+from chromadb.config import Settings
 
 load_dotenv()
 
@@ -23,9 +25,18 @@ llm = ChatGoogleGenerativeAI(
 
 # Initialize ChromaDB collections (without persistence)
 embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-report_vectordb = Chroma(collection_name="reports", embedding_function=embeddings)
+settings = Settings(persist_directory="chroma_db/reports", allow_reset=True)
+report_vectordb = Chroma(
+    collection_name="reports",
+    embedding_function=embeddings,
+    persist_directory="chroma_db/reports",
+    client_settings=settings,
+)
 chat_history_vectordb = Chroma(
-    collection_name="chat_history", embedding_function=embeddings
+    collection_name="chat_history",
+    embedding_function=embeddings,
+    persist_directory="chroma_db/reports",
+    client_settings=settings,
 )
 
 prompt_template = ChatPromptTemplate.from_messages([("system", system_prompt)])
@@ -34,13 +45,33 @@ prompt_template = ChatPromptTemplate.from_messages([("system", system_prompt)])
 chat_history_tool = ChatHistorySearchTool(chat_history_vectordb)
 
 
-def get_chat_response(user_input: str, sender="user", session_id=None):
-    print("User input:", user_input)
-    # Retrieve relevant docs from reports collection
-    relevant_docs = report_vectordb.similarity_search(user_input, k=3)
+def get_chat_response(
+    user_input: str,
+    sender,
+    user_id=None,  # changed from session_id
+    report_id=None,
+    accent_code="en-IN",
+    voice_name="en-IN-Wavenet-A",
+):
+    # Use search_full_report to get relevant snippet from report as context
+    report_context = None
+    if report_id:
+        report_context = search_full_report(report_id, user_input)
+    # Debug: Print all report_ids in the vector store
+    all_metadatas = report_vectordb.get()["metadatas"]
+    all_report_ids = set()
+    for meta in all_metadatas:
+        if meta and "report_id" in meta:
+            all_report_ids.add(meta["report_id"])
+    # Retrieve relevant docs from reports collection (chunked vector search)
+    relevant_docs = report_vectordb.similarity_search(
+        user_input, k=3, filter={"report_id": report_id} if report_id else None
+    )
     context_text = "\n".join([doc.page_content for doc in relevant_docs])
     # Prepare messages for LLM
     messages = [("system", system_prompt)]
+    if report_context:
+        messages.append(("ai", f"Relevant snippet from report: {report_context}"))
     if context_text:
         messages.append(("ai", f"Context from report: {context_text}"))
     # Optionally, retrieve relevant chat history for context
@@ -50,7 +81,6 @@ def get_chat_response(user_input: str, sender="user", session_id=None):
             [doc.metadata.get("summary", doc.page_content) for doc in relevant_chats]
         )
         messages.append(("ai", f"Relevant chat history: {chat_context}"))
-    print("Relevant chat history:", relevant_chats)
     messages.append(("human", user_input))
     print("Messages for LLM:", messages)
     # Generate response
@@ -66,7 +96,8 @@ def get_chat_response(user_input: str, sender="user", session_id=None):
             {
                 "sender": sender,
                 "timestamp": datetime.utcnow().isoformat(),
-                "session_id": session_id,
+                "user_id": user_id,  # changed from session_id
+                "report_id": report_id,
                 "summary": None,
             }
         ],
@@ -78,11 +109,13 @@ def get_chat_response(user_input: str, sender="user", session_id=None):
             {
                 "sender": "ai",
                 "timestamp": datetime.utcnow().isoformat(),
-                "session_id": session_id,
+                "user_id": user_id,  # changed from session_id
+                "report_id": report_id,
                 "summary": summary,
             }
         ],
     )
-    print("@@LLM response:", sanitized_response)
-    mp3_bytes = synthesize_text_to_mp3(sanitized_response)
+    mp3_bytes = synthesize_text_to_mp3(
+        sanitized_response, accent_code=accent_code, voice_name=voice_name
+    )
     return sanitized_response, mp3_bytes
