@@ -13,6 +13,12 @@ from services.full_report_store import save_full_report_text
 from tableauhyperapi import TableName
 from fastapi.responses import FileResponse
 from chromadb.config import Settings
+from tableauhyperapi import HyperProcess, Connection, Telemetry, TableName
+import tempfile as _tempfile
+import time
+from chromadb.config import Settings
+import pandas as pd
+
 
 router = APIRouter()
 
@@ -48,13 +54,17 @@ def upload_report_file(
         if filename.endswith(".twbx"):
             import zipfile
             import xml.etree.ElementTree as ET
+
             data_text = ""
             try:
                 with zipfile.ZipFile(temp_path, "r") as z:
                     twb_names = [n for n in z.namelist() if n.endswith(".twb")]
                     if not twb_names:
                         os.remove(temp_path)
-                        raise HTTPException(status_code=400, detail="No .twb file found inside the Tableau .twbx archive. Please upload a valid Tableau packaged workbook.")
+                        raise HTTPException(
+                            status_code=400,
+                            detail="No .twb file found inside the Tableau .twbx archive. Please upload a valid Tableau packaged workbook.",
+                        )
                     twb_name = twb_names[0]
                     with z.open(twb_name) as twb_file:
                         twb_xml = twb_file.read()
@@ -63,30 +73,47 @@ def upload_report_file(
                     hyper_names = [n for n in z.namelist() if n.endswith(".hyper")]
                     if hyper_names:
                         try:
-                            from tableauhyperapi import HyperProcess, Connection, Telemetry, TableName
-                            import tempfile as _tempfile
+
                             for hyper_name in hyper_names:
                                 with z.open(hyper_name) as hyper_file:
-                                    with _tempfile.NamedTemporaryFile(delete=False, suffix=".hyper") as hyper_temp:
+                                    with _tempfile.NamedTemporaryFile(
+                                        delete=False, suffix=".hyper"
+                                    ) as hyper_temp:
                                         hyper_temp.write(hyper_file.read())
                                         hyper_temp.flush()
                                         hyper_path = hyper_temp.name
-                                with HyperProcess(telemetry=Telemetry.SEND_USAGE_DATA_TO_TABLEAU) as hyper:
-                                    with Connection(endpoint=hyper.endpoint, database=hyper_path) as connection:
-                                        schema_names = connection.catalog.get_schema_names()
+                                with HyperProcess(
+                                    telemetry=Telemetry.SEND_USAGE_DATA_TO_TABLEAU
+                                ) as hyper:
+                                    with Connection(
+                                        endpoint=hyper.endpoint, database=hyper_path
+                                    ) as connection:
+                                        schema_names = (
+                                            connection.catalog.get_schema_names()
+                                        )
                                         for schema in schema_names:
-                                            tables = connection.catalog.get_table_names(schema)
+                                            tables = connection.catalog.get_table_names(
+                                                schema
+                                            )
                                             for table in tables:
                                                 try:
                                                     # Log schema and table for debugging
-                                                    print(f"[DEBUG] Extracting table: schema='{schema}', table='{table}'")
+                                                    print(
+                                                        f"[DEBUG] Extracting table: schema='{schema}', table='{table}'"
+                                                    )
                                                     # Use TableName(table) if schema is empty or schema == table
                                                     if not schema or schema == table:
                                                         table_name = TableName(table)
                                                     else:
-                                                        table_name = TableName(schema, table)
-                                                    rows = connection.execute_list_query(f'SELECT * FROM {table_name} LIMIT 20')
-                                                    data_text += f"Table: {schema}.{table}\n"
+                                                        table_name = TableName(
+                                                            schema, table
+                                                        )
+                                                    rows = connection.execute_list_query(
+                                                        f"SELECT * FROM {table_name} LIMIT 20"
+                                                    )
+                                                    data_text += (
+                                                        f"Table: {schema}.{table}\n"
+                                                    )
                                                     for row in rows:
                                                         data_text += str(row) + "\n"
                                                     data_text += "\n"
@@ -95,12 +122,18 @@ def upload_report_file(
                                 os.remove(hyper_path)
                         except Exception as e:
                             import traceback
+
                             tb = traceback.format_exc()
-                            data_text += f"[Could not extract .hyper data: {str(e)}\n{tb}]"
+                            data_text += (
+                                f"[Could not extract .hyper data: {str(e)}\n{tb}]"
+                            )
                     # --- End .hyper extraction ---
             except Exception as e:
                 os.remove(temp_path)
-                raise HTTPException(status_code=400, detail=f"Failed to parse Tableau .twbx file: {str(e)}")
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Failed to parse Tableau .twbx file: {str(e)}",
+                )
             # Extract worksheet names and captions (basic)
             sheets = []
             for ws in root.findall(".//worksheet"):
@@ -116,19 +149,23 @@ def upload_report_file(
                     sheets.append(f"Worksheet: {ws_name}")
             full_text = "\n\n".join(sheets)
             if data_text:
-                full_text += "\n\nExtracted Data (first 20 rows per table):\n" + data_text
-            import time
+                full_text += (
+                    "\n\nExtracted Data (first 20 rows per table):\n" + data_text
+                )
             report_id = f"{os.path.splitext(filename)[0]}_{int(time.time())}"
             save_full_report_text(report_id, full_text)
             text_splitter = RecursiveCharacterTextSplitter(
                 chunk_size=1000, chunk_overlap=200
             )
             split_docs = text_splitter.create_documents([full_text])
+            settings = Settings(persist_directory="chroma_db/reports", allow_reset=True)
             embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
             vectordb = Chroma.from_documents(
-                split_docs, embedding=embeddings, collection_name="reports"
+                split_docs,
+                embedding=embeddings,
+                collection_name="reports",
+                client_settings=settings,
             )
-            vectordb.persist()
             os.remove(temp_path)
             return {
                 "status": "success",
@@ -145,7 +182,8 @@ def upload_report_file(
             except Exception as e:
                 os.remove(temp_path)
                 raise HTTPException(
-                    status_code=400, detail=f"Failed to parse Tableau .twb file: {str(e)}"
+                    status_code=400,
+                    detail=f"Failed to parse Tableau .twb file: {str(e)}",
                 )
             # Extract worksheet names and captions (basic)
             sheets = []
@@ -170,10 +208,13 @@ def upload_report_file(
             )
             split_docs = text_splitter.create_documents([full_text])
             embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+            settings = Settings(persist_directory="chroma_db/reports", allow_reset=True)
             vectordb = Chroma.from_documents(
-                split_docs, embedding=embeddings, collection_name="reports"
+                split_docs,
+                embedding=embeddings,
+                collection_name="reports",
+                client_settings=settings,
             )
-            vectordb.persist()
             os.remove(temp_path)
             return {
                 "status": "success",
@@ -196,13 +237,15 @@ def upload_report_file(
                     print(f"[DEBUG] No content extracted from .xlsx file: {temp_path}")
             except Exception as e:
                 import traceback
+
                 tb = traceback.format_exc()
                 print(f"[ERROR] Failed to load .xlsx file: {e}\n{tb}")
                 os.remove(temp_path)
-                raise HTTPException(status_code=400, detail=f"Failed to parse .xlsx file: {str(e)}")
+                raise HTTPException(
+                    status_code=400, detail=f"Failed to parse .xlsx file: {str(e)}"
+                )
         elif filename.endswith(".csv"):
             try:
-                import pandas as pd
                 print(f"[DEBUG] Attempting to load .csv file: {temp_path}")
                 df = pd.read_csv(temp_path)
                 docs = []
@@ -212,14 +255,18 @@ def upload_report_file(
                     df = df.head(max_rows)
                 csv_text = df.to_csv(index=False)
                 from langchain_core.documents import Document
+
                 docs.append(Document(page_content=csv_text))
                 print(f"[DEBUG] Loaded CSV with shape {df.shape}.")
             except Exception as e:
                 import traceback
+
                 tb = traceback.format_exc()
                 print(f"[ERROR] Failed to load .csv file: {e}\n{tb}")
                 os.remove(temp_path)
-                raise HTTPException(status_code=400, detail=f"Failed to parse .csv file: {str(e)}")
+                raise HTTPException(
+                    status_code=400, detail=f"Failed to parse .csv file: {str(e)}"
+                )
         else:
             raise HTTPException(status_code=400, detail="Unsupported file type.")
         # Save the full text of the document using a unique report_id (e.g., filename + timestamp)
@@ -245,12 +292,13 @@ def upload_report_file(
         embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
         persist_dir = "chroma_db/reports"
         collection_name = "reports"
+        settings = Settings(persist_directory="chroma_db/reports", allow_reset=True)
         # Try to load existing collection, else create new
         try:
             vectordb = Chroma(
                 collection_name=collection_name,
                 embedding_function=embeddings,
-                persist_directory=persist_dir,
+                client_settings=settings,
             )
             vectordb.add_documents(split_docs)
         except Exception:
@@ -258,9 +306,8 @@ def upload_report_file(
                 split_docs,
                 embedding=embeddings,
                 collection_name=collection_name,
-                persist_directory=persist_dir,
+                client_settings=settings,
             )
-        vectordb.persist()
         # Clean up temp file
         os.remove(temp_path)
         return {
@@ -281,7 +328,6 @@ def get_user_reports(userId: str = Query(..., description="User ID to filter rep
         settings = Settings(persist_directory="chroma_db/reports", allow_reset=True)
         vectordb = Chroma(
             collection_name="reports",
-            persist_directory="chroma_db/reports",
             embedding_function=embeddings,
             client_settings=settings,
         )
@@ -292,7 +338,6 @@ def get_user_reports(userId: str = Query(..., description="User ID to filter rep
         matching_report_ids = set()
         for idx, id_ in enumerate(ids):
             meta = metadatas[idx] if idx < len(metadatas) else {}
-            print(f"meta.get('userId'): {meta.get('userId')}, userId param: {userId}, meta: {meta}")
             if meta.get("userId") == userId:
                 matching_report_ids.add(meta.get("report_id"))
         return {"status": "success", "report_ids": list(matching_report_ids)}
