@@ -46,7 +46,8 @@ def convertAudioToText(file):
     config = speech.RecognitionConfig(
         encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
         sample_rate_hertz=detected_sample_rate,
-        language_code="en-US",  # Always use default; downstream will detect actual language
+        language_code="en-US",  # Primary language
+        alternative_language_codes=["hi-IN"],  # Allow Hindi as alternative
     )
     response = client.recognize(config=config, audio=audio)
     if not response.results:
