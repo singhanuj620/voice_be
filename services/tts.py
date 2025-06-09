@@ -1,5 +1,4 @@
 from google.cloud import texttospeech
-from langdetect import detect
 import os
 
 # os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = (
@@ -26,17 +25,11 @@ def synthesize_text_to_mp3(
     Returns:
         bytes: The binary content of the generated MP3 audio file.
     """
-    # Detect language if not explicitly set to Hindi
-    try:
-        detected_lang = detect(text)
-    except Exception:
-        detected_lang = "en"
-    if detected_lang == "hi":
-        accent_code = "hi-IN"
-        g_voice = "hi-IN-Wavenet-A"  # Hindi Female only
-        g_accent = accent_code
+    # No language detection here; accent_code/voice_name are set by backend logic
+    if accent_code == "hi-IN":
+        g_accent = "hi-IN"
+        g_voice = "hi-IN-Wavenet-A"
     else:
-        # Map user-friendly voice_name to Google TTS voice
         voice_map = {
             ("en-IN", "en-IN-Male"): ("en-IN", "en-IN-Wavenet-B"),
             ("en-IN", "en-IN-Female"): ("en-IN", "en-IN-Wavenet-A"),

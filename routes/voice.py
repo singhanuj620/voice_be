@@ -17,9 +17,6 @@ router = APIRouter()
 @router.post("/voice-to-text")
 def voice_to_text(
     file: UploadFile = File(...),
-    accent_code: str = Form("en-IN"),
-    voice_name: str = Form("en-IN-Wavenet-A"),
-    stt_language_code: str = Form("en-US"),  # NEW: Accept STT language code
     userId: str = Form("userId"),
     reportId: str = Form("reportId"),
 ):
@@ -27,18 +24,13 @@ def voice_to_text(
         userId = userId if userId else "user"
         reportId = reportId if reportId else "reportId"
         print(f"Received file: {file.filename}")
-        text = convertAudioToText(
-            file=file,
-            stt_language_code=stt_language_code,  # Use user-selected STT language
-        )
+        text = convertAudioToText(file=file)
         # Generate a random correlation ID for user/session
         correlation_id = str(uuid.uuid4())
         response_text, mp3_bytes = get_chat_response(
             text,
             sender=userId,
             user_id=userId,  # changed from session_id
-            accent_code=accent_code,
-            voice_name=voice_name,
             report_id=reportId,
         )
         return StreamingResponse(iter([mp3_bytes]), media_type="audio/mpeg")
@@ -50,8 +42,6 @@ def voice_to_text(
 @router.post("/text-to-voice")
 def text_to_voice(
     text: str = Form(...),
-    accent_code: str = Form("en-IN"),
-    voice_name: str = Form("en-IN-Wavenet-A"),
 ):
     try:
         print(f"Received typed text: {text}")
@@ -61,8 +51,6 @@ def text_to_voice(
             text,
             sender="user",
             user_id="user",  # changed from session_id
-            accent_code=accent_code,
-            voice_name=voice_name,
         )
         return StreamingResponse(iter([mp3_bytes]), media_type="audio/mpeg")
     except Exception as e:

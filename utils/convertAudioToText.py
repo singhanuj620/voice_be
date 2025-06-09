@@ -5,7 +5,7 @@ from pydub import AudioSegment
 from google.cloud import speech
 
 
-def convertAudioToText(file, stt_language_code="en-US"):
+def convertAudioToText(file):
     filename = file.filename.lower()
     # Accept .wav and .webm files
     if not (filename.endswith(".wav") or filename.endswith(".webm")):
@@ -46,7 +46,7 @@ def convertAudioToText(file, stt_language_code="en-US"):
     config = speech.RecognitionConfig(
         encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
         sample_rate_hertz=detected_sample_rate,
-        language_code=stt_language_code,  # Use user-selected STT language
+        language_code="en-US",  # Always use default; downstream will detect actual language
     )
     response = client.recognize(config=config, audio=audio)
     if not response.results:

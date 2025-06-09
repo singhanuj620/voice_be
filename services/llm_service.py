@@ -13,6 +13,8 @@ from services.systemPrompt import system_prompt
 from services.sanatizeResponse import sanitize_response
 from services.full_report_search import search_full_report
 from chromadb.config import Settings
+from langdetect import detect
+import re
 
 load_dotenv()
 
@@ -50,9 +52,22 @@ def get_chat_response(
     sender,
     user_id=None,  # changed from session_id
     report_id=None,
-    accent_code="en-IN",
-    voice_name="en-IN-Wavenet-A",
 ):
+    # Detect language and check for override
+    def extract_language_override(text):
+        # Simple regex to detect override commands
+        if re.search(r"(?i)answer in english|respond in english|reply in english", text):
+            return "en"
+        if re.search(r"(?i)answer in hindi|respond in hindi|reply in hindi|hindi mein|hindi me|hindi mai", text):
+            return "hi"
+        return None
+
+    override_lang = extract_language_override(user_input)
+    try:
+        detected_lang = detect(user_input)
+    except Exception:
+        detected_lang = "en"
+    response_lang = override_lang if override_lang else detected_lang
     # Use search_full_report to get relevant snippet from report as context
     report_context = None
     if report_id:
@@ -115,6 +130,13 @@ def get_chat_response(
             }
         ],
     )
+    # Set TTS accent/voice based on response_lang
+    if response_lang == "hi":
+        accent_code = "hi-IN"
+        voice_name = "hi-IN-Female"
+    else:
+        accent_code = "en-IN"
+        voice_name = "en-IN-Female"
     mp3_bytes = synthesize_text_to_mp3(
         sanitized_response, accent_code=accent_code, voice_name=voice_name
     )
