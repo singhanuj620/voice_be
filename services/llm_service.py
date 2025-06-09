@@ -96,7 +96,16 @@ def get_chat_response(
             [doc.metadata.get("summary", doc.page_content) for doc in relevant_chats]
         )
         messages.append(("ai", f"Relevant chat history: {chat_context}"))
-    messages.append(("human", user_input))
+    # If Hindi is requested or detected, prepend explicit instruction unless already present
+    user_input_for_llm = user_input
+    if response_lang == "hi":
+        # Check if user already requested answer in Hindi
+        hindi_request_patterns = [
+            r"उत्तर हिंदी में", r"हिंदी में जवाब", r"हिंदी में बताओ", r"हिंदी में दीजिए", r"in hindi", r"answer in hindi", r"respond in hindi", r"reply in hindi"
+        ]
+        if not any(re.search(pat, user_input, re.IGNORECASE) for pat in hindi_request_patterns):
+            user_input_for_llm = "उत्तर हिंदी में दीजिए। " + user_input
+    messages.append(("human", user_input_for_llm))
     print("Messages for LLM:", messages)
     # Generate response
     response = llm.invoke(messages, tools=[chat_history_tool])
