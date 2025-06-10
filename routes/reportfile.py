@@ -226,7 +226,7 @@ def upload_report_file(
             docs = loader.load()
             # --- Image extraction from PDF (no OCR) ---
             try:
-                from PyPDF2 import PdfReader
+                from pypdf import PdfReader  # FIX: use pypdf, not PyPDF2
                 image_placeholders = []
                 reader = PdfReader(temp_path)
                 for page_num, page in enumerate(reader.pages):
