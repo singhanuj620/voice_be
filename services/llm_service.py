@@ -15,7 +15,7 @@ from services.full_report_search import search_full_report
 from chromadb.config import Settings
 from langdetect import detect
 import re
-from googletrans import Translator
+from deep_translator import GoogleTranslator
 
 load_dotenv()
 
@@ -117,9 +117,7 @@ def get_chat_response(
         # Check if the response is not in Hindi (very basic check: contains mostly English letters)
         if not re.search(r"[\u0900-\u097F]", sanitized_response):
             try:
-                translator = Translator()
-                translated = translator.translate(sanitized_response, src='en', dest='hi')
-                sanitized_response = translated.text
+                sanitized_response = GoogleTranslator(source='en', target='hi').translate(sanitized_response)
             except Exception as e:
                 print(f"[WARN] Hindi translation failed: {e}")
     # Generate one-liner summary for this Q&A
