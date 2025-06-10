@@ -224,27 +224,6 @@ def upload_report_file(
         if filename.endswith(".pdf"):
             loader = PyPDFLoader(temp_path)
             docs = loader.load()
-            # --- Image extraction from PDF using PyMuPDF (fitz) ---
-            try:
-                import fitz  # PyMuPDF
-                image_placeholders = []
-                doc = fitz.open(temp_path)
-                for page_num in range(len(doc)):
-                    page = doc[page_num]
-                    images = page.get_images(full=True)
-                    for img_index, img in enumerate(images):
-                        xref = img[0]
-                        base_image = doc.extract_image(xref)
-                        width = base_image.get("width", "?")
-                        height = base_image.get("height", "?")
-                        ext = base_image.get("ext", "?")
-                        image_placeholders.append(
-                            f"[IMAGE: page {page_num+1}, index {img_index+1}, size {width}x{height}, format {ext}]"
-                        )
-                if image_placeholders:
-                    docs.append(type(docs[0])(page_content="\n".join(image_placeholders)))
-            except Exception as e:
-                print(f"[WARN] PDF image extraction (fitz) failed: {e}")
         elif filename.endswith(".docx"):
             loader = UnstructuredWordDocumentLoader(temp_path)
             docs = loader.load()

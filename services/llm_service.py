@@ -15,6 +15,7 @@ from services.full_report_search import search_full_report
 from chromadb.config import Settings
 from langdetect import detect
 import re
+from googletrans import Translator
 
 load_dotenv()
 
@@ -111,6 +112,16 @@ def get_chat_response(
     response = llm.invoke(messages, tools=[chat_history_tool])
     print("##LLM response:", response.content)
     sanitized_response = sanitize_response(response.content)
+    # Fallback: If Hindi was requested but LLM did not respond in Hindi, translate to Hindi
+    if response_lang == "hi":
+        # Check if the response is not in Hindi (very basic check: contains mostly English letters)
+        if not re.search(r"[\u0900-\u097F]", sanitized_response):
+            try:
+                translator = Translator()
+                translated = translator.translate(sanitized_response, src='en', dest='hi')
+                sanitized_response = translated.text
+            except Exception as e:
+                print(f"[WARN] Hindi translation failed: {e}")
     # Generate one-liner summary for this Q&A
     summary = generate_oneliner_summary(user_input, sanitized_response, llm)
     # Store user message in chat_history collection (with summary=None)
