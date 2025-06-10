@@ -224,6 +224,29 @@ def upload_report_file(
         if filename.endswith(".pdf"):
             loader = PyPDFLoader(temp_path)
             docs = loader.load()
+            # --- Image extraction from PDF (no OCR) ---
+            try:
+                from PyPDF2 import PdfReader
+                image_placeholders = []
+                reader = PdfReader(temp_path)
+                for page_num, page in enumerate(reader.pages):
+                    if "/XObject" in page.get("/Resources", {}):
+                        xObject = page["/Resources"]["/XObject"].get_object()
+                        for obj in xObject:
+                            img = xObject[obj]
+                            if img.get("/Subtype") == "/Image":
+                                width = img.get("/Width", "?")
+                                height = img.get("/Height", "?")
+                                color_space = img.get("/ColorSpace", "?")
+                                filter_ = img.get("/Filter", "?")
+                                image_placeholders.append(
+                                    f"[IMAGE: page {page_num+1}, size {width}x{height}, color {color_space}, filter {filter_}]"
+                                )
+                if image_placeholders:
+                    # Insert image placeholders at the end of the extracted text
+                    docs.append(type(docs[0])(page_content="\n".join(image_placeholders)))
+            except Exception as e:
+                print(f"[WARN] PDF image extraction failed: {e}")
         elif filename.endswith(".docx"):
             loader = UnstructuredWordDocumentLoader(temp_path)
             docs = loader.load()
