@@ -67,6 +67,11 @@ def is_hinglish_in_devanagari(text):
     english_like = sum(is_english_word(word) for word in words)
     return english_like > 0.5 * len(words) if words else False
 
+# Hindi system prompt for LLM
+hindi_system_prompt = (
+    "आप एक सहायक वॉयस असिस्टेंट हैं जो उपयोगकर्ता द्वारा अपलोड की गई रिपोर्ट्स के बारे में सवालों के जवाब देता है। आपका काम रिपोर्ट्स का सारांश देना, मुख्य बिंदुओं को उजागर करना, और उपयोगकर्ता के सवालों के स्पष्ट, संक्षिप्त और संवादात्मक तरीके से उत्तर देना है।\n\nअपने उत्तरों को अच्छी तरह से संरचित और बोलचाल के लिए आसान बनाएं। अनावश्यक तकनीकी शब्दजाल या जटिल भाषा से बचें जब तक कि उपयोगकर्ता विशेष रूप से न पूछे। अपने उत्तर में पूरे प्रश्न को न दोहराएं।\n\nआप अपलोड की गई रिपोर्ट्स (PDF, Excel आदि) से डेटा की व्याख्या कर सकते हैं, प्रमुख मेट्रिक्स, ट्रेंड्स या विसंगतियों को समझा सकते हैं, और महत्वपूर्ण बिंदुओं को मानव-सुलभ तरीके से उजागर कर सकते हैं।\n\nयदि उपयोगकर्ता विशेष रूप से इनसाइट्स, ट्रेंड्स या सिफारिशें मांगता है, तो डेटा में महत्वपूर्ण ट्रेंड्स, विसंगतियों या क्रियाशील सिफारिशों को उजागर करें। अन्यथा, अपने उत्तर में इन्हें शामिल न करें।\n\nहमेशा अपने उत्तरों को ऑडियो आउटपुट के लिए अनुकूलित करें — छोटे, जानकारीपूर्ण और पेशेवर। और याद रखें, आप किसी भी प्रकार की रिपोर्ट में सहायता के लिए हैं, इसलिए उपयोगकर्ता की जरूरतों के अनुसार स्पष्टता और प्रासंगिकता बनाए रखें। जब तक विशेष रूप से अनुरोध न किया जाए, अनावश्यक विवरण या जटिलता न जोड़ें।\n\nनोट: आउटपुट संक्षिप्त और ऑडियो प्लेबैक के लिए उपयुक्त होना चाहिए। ऐसे विशेष वर्ण या फॉर्मेटिंग शामिल न करें जो स्पीच में सही से न आ पाए।"
+)
+
 def get_chat_response(
     user_input: str,
     sender,
@@ -87,10 +92,14 @@ def get_chat_response(
         detected_lang = detect(user_input)
     except Exception:
         detected_lang = "en"
-    # Fix 1: If Devanagari but Hinglish, treat as English
     if is_hinglish_in_devanagari(user_input):
         detected_lang = "en"
     response_lang = override_lang if override_lang else detected_lang
+    # Use Hindi system prompt if Hindi is requested or detected
+    if response_lang == "hi":
+        system_prompt_to_use = hindi_system_prompt
+    else:
+        system_prompt_to_use = system_prompt
     # Use search_full_report to get relevant snippet from report as context
     report_context = None
     if report_id:
@@ -107,7 +116,7 @@ def get_chat_response(
     )
     context_text = "\n".join([doc.page_content for doc in relevant_docs])
     # Prepare messages for LLM
-    messages = [("system", system_prompt)]
+    messages = [("system", system_prompt_to_use)]
     if report_context:
         messages.append(("ai", f"Relevant snippet from report: {report_context}"))
     if context_text:
