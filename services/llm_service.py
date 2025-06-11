@@ -62,10 +62,15 @@ def is_hinglish_in_devanagari(text):
     # If text is in Devanagari but most words are English (transliterated), treat as English
     if not is_devanagari(text):
         return False
+    # List of common English words/phrases written in Devanagari (expand as needed)
+    common_hinglish_words = [
+        "इन", "इंग्लिश", "आंसर", "हाईएस्ट", "परचेस", "रेट", "शेयर", "विच", "बाय", "सेल", "प्रॉफिट", "लॉस", "कंपनी", "स्टॉक", "डेटा", "रिपोर्ट", "क्वेश्चन", "सिस्टम", "कंटेक्स्ट", "रिलेवेंट", "कलेक्शन", "फिल्टर", "ट्रेंड", "समरी", "क्लियर", "कन्वर्सेशनल", "क्विक", "इंसाइट", "रिप्लाई", "इनपुट", "आउटपुट", "यूजर", "प्रॉम्प्ट", "टेक्स्ट", "डिटेक्ट", "लैंग्वेज", "ह्यूमन", "एआई", "टूल", "सिंथेसाइज", "वॉयस", "फीमेल", "मेल", "इंडियन", "इंटरप्रेट", "डाटा", "एक्सेल", "पीडीएफ", "स्निपेट", "कंटेंट", "कंट्रोल", "मैसेज", "सिस्टम", "सर्विस", "रिपोर्ट्स", "क्लाइंट", "सेटिंग्स", "कलेक्शन", "कंट्रोल", "मैसेजेस", "रिलेवेंट", "कंटेक्स्ट", "क्वेरी", "फंक्शन", "रिटर्न", "डिटेक्टेड", "ओवरराइड", "लैंगडिटेक्ट", "रिस्पॉन्स", "लैंग", "यूजर", "इनपुट", "रिपोर्ट", "आइड", "कंटेक्स्ट", "कंट्रोल", "मैसेजेस", "रिलेवेंट", "कंटेक्स्ट", "क्वेरी", "फंक्शन", "रिटर्न", "डिटेक्टेड", "ओवरराइड", "लैंगडिटेक्ट", "रिस्पॉन्स", "लैंग", "यूजर", "इनपुट", "रिपोर्ट", "आइड"
+    ]
     words = text.split()
-    # Simple check: if more than half the words are English (transliterated)
-    english_like = sum(is_english_word(word) for word in words)
-    return english_like > 0.5 * len(words) if words else False
+    # Count how many words match the common Hinglish list
+    hinglish_like = sum(word in common_hinglish_words for word in words)
+    # If more than 2 words match, treat as Hinglish (English intent)
+    return hinglish_like > 2
 
 # Hindi system prompt for LLM
 hindi_system_prompt = (
