@@ -15,7 +15,6 @@ from services.full_report_search import search_full_report
 from chromadb.config import Settings
 from langdetect import detect
 import re
-from deep_translator import GoogleTranslator
 
 load_dotenv()
 
@@ -97,8 +96,8 @@ def get_chat_response(
             [doc.metadata.get("summary", doc.page_content) for doc in relevant_chats]
         )
         messages.append(("ai", f"Relevant chat history: {chat_context}"))
-    # If Hindi is requested or detected, prepend explicit instruction unless already present
     user_input_for_llm = user_input
+    # If Hindi is requested or detected, prepend explicit instruction unless already present
     if response_lang == "hi":
         # Check if user already requested answer in Hindi
         hindi_request_patterns = [
@@ -112,14 +111,6 @@ def get_chat_response(
     response = llm.invoke(messages, tools=[chat_history_tool])
     print("##LLM response:", response.content)
     sanitized_response = sanitize_response(response.content)
-    # Fallback: If Hindi was requested but LLM did not respond in Hindi, translate to Hindi
-    if response_lang == "hi":
-        # Check if the response is not in Hindi (very basic check: contains mostly English letters)
-        if not re.search(r"[\u0900-\u097F]", sanitized_response):
-            try:
-                sanitized_response = GoogleTranslator(source='en', target='hi').translate(sanitized_response)
-            except Exception as e:
-                print(f"[WARN] Hindi translation failed: {e}")
     # Generate one-liner summary for this Q&A
     summary = generate_oneliner_summary(user_input, sanitized_response, llm)
     # Store user message in chat_history collection (with summary=None)
@@ -158,4 +149,4 @@ def get_chat_response(
     mp3_bytes = synthesize_text_to_mp3(
         sanitized_response, accent_code=accent_code, voice_name=voice_name
     )
-    return sanitized_response, mp3_bytes
+    return mp3_bytes, sanitized_response, summary
