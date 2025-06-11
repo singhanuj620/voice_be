@@ -149,4 +149,4 @@ def get_chat_response(
     mp3_bytes = synthesize_text_to_mp3(
         sanitized_response, accent_code=accent_code, voice_name=voice_name
     )
-    return mp3_bytes, sanitized_response, summary
+    return sanitized_response, mp3_bytes
