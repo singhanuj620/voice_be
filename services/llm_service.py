@@ -47,6 +47,26 @@ prompt_template = ChatPromptTemplate.from_messages([("system", system_prompt)])
 chat_history_tool = ChatHistorySearchTool(chat_history_vectordb)
 
 
+def is_devanagari(text):
+    # Returns True if most characters are in Devanagari Unicode block
+    devanagari_count = sum(
+        1 for c in text if '\u0900' <= c <= '\u097F'
+    )
+    return devanagari_count > 0.5 * len(text) if text else False
+
+def is_english_word(word):
+    # Returns True if word is mostly ASCII letters
+    return all('a' <= c.lower() <= 'z' for c in word if c.isalpha())
+
+def is_hinglish_in_devanagari(text):
+    # If text is in Devanagari but most words are English (transliterated), treat as English
+    if not is_devanagari(text):
+        return False
+    words = text.split()
+    # Simple check: if more than half the words are English (transliterated)
+    english_like = sum(is_english_word(word) for word in words)
+    return english_like > 0.5 * len(words) if words else False
+
 def get_chat_response(
     user_input: str,
     sender,
@@ -66,6 +86,9 @@ def get_chat_response(
     try:
         detected_lang = detect(user_input)
     except Exception:
+        detected_lang = "en"
+    # Fix 1: If Devanagari but Hinglish, treat as English
+    if is_hinglish_in_devanagari(user_input):
         detected_lang = "en"
     response_lang = override_lang if override_lang else detected_lang
     # Use search_full_report to get relevant snippet from report as context
