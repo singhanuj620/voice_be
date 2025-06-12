@@ -42,6 +42,8 @@ def voice_to_text(
 @router.post("/text-to-voice")
 def text_to_voice(
     text: str = Form(...),
+    userId: str = Form("userId"),
+    reportId: str = Form("reportId"),
 ):
     try:
         print(f"Received typed text: {text}")
@@ -49,8 +51,9 @@ def text_to_voice(
         correlation_id = str(uuid.uuid4())
         response_text, mp3_bytes = get_chat_response(
             text,
-            sender="user",
-            user_id="user",  # changed from session_id
+            sender=userId,
+            user_id=userId,  # changed from session_id
+            report_id=reportId,
         )
         return StreamingResponse(iter([mp3_bytes]), media_type="audio/mpeg")
     except Exception as e:
